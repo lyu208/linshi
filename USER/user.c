@@ -2,8 +2,8 @@
 /**
   ******************************************************************************
   * @file    user.c
-  * @author  侯霄
-  * @date    2016年5月5日
+  * @author  梦之创
+  * @date    2018年5月5日
   * @brief   系统功能实现在此文件内
   ******************************************************************************
   * @attention
@@ -11,7 +11,7 @@
   *
   *
   *
-  *                COPYRIGHT 2016 冲霄集团物联网设备研发中心
+  *                COPYRIGHT 2018 梦之创物联网设备研发中心
   ******************************************************************************
   */
 
@@ -24,9 +24,14 @@
 #include "qr_encode.h"
 #include "HX711.h"
 #include "sim900a.h"
-
+#include "stm32f10x_it.h"
 #define QRCODE_Y    240      //TFT二维码显示坐标y
-
+u8 len;	
+u8 t;
+extern char RxBuffer2[17];
+extern  u8 ReceiveState;
+extern u16 USART3_RX_STA;
+extern u8 USART3_RX_BUF[200];
 
 float  verison = 0;
 
@@ -40,6 +45,7 @@ uchar getWeightCnt = 0;
 char weightStr[10] = {0};
 char unitPrice[8] = {0};
 char totalMoney[8] = {0};
+char totalWeight[20]={0};
 char gprsSendBuff[50] = {0};
 uchar tradeLock = 0;
 uchar  ledFlickFlag = 0;
@@ -50,11 +56,7 @@ uchar heartbeatService = 0;
 
 const uint8_t codetest[] = //微信名片，可以去百度上搜索二维码名片 查看
 {
-    "URL:http:www.baidu.com"
-//    "独睡无适处，静夜起相思。\r\n凭栏相望远，念我美娇妻。\r\n "
-//    "何当拥卿巫山雨云共佳期，却话待我有房手里存款几个亿！\r\n"
-//    "                    ——侯霄"
-//  "不要扫我"
+    "https://QR.ALIPAY.COM/FKX032960FOJUCUJWUZM6C"
 };
 
 void RCC_Config(void);
@@ -122,8 +124,8 @@ void RCC_Config(void)
     /*  RCC_APB1PeriphClockCmd(RCC_APB1Periph_I2C2, ENABLE);   */
     /*                                                         */
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2, ENABLE);
-// RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART3,
-    //                       ENABLE); /* 单片机与手机模块的通信用串口3*/
+    RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART3,
+                         ENABLE); /* 单片机与手机模块的通信用串口3*/
 
     /*  RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART4, ENABLE); */
     /*  RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART5, ENABLE); */
@@ -169,8 +171,8 @@ void  HeadFirst(void)
 
     USART1_Config();
     USART2_Config();
-
-//    printf("==制灵师-侯霄==\r\n授灵日期:2017年5月11日==\r\n");
+		USART3_Config();
+//    printf("==制灵师-==\r\n授灵日期==\r\n");
 //    printf("附体魂魄小鬼编号:%.2f\r\n", verison);
 
 //    SendStringBy_USART1("OK\r\n");
@@ -301,7 +303,7 @@ void LedFlick()
 {
     static uint8_t Su8_ledStep = 0;
     static uint8_t Su8_ledFlickNum = 0;
-
+		DS0_TimeCnt++;
 
     if(!ledFlickFlag ) return;
 
@@ -620,6 +622,7 @@ void KeyPadService(void)
 
             keyTouch = 0;
             tradeLock = 0;//交易锁打开
+				     LCD_ShowString(0, 160, 209, 24, 24, "No receive");//17*12=204
             break;
         case 12:
             //    printf("C:删除\r\n");
@@ -635,9 +638,8 @@ void KeyPadService(void)
             //    printf("D:结算\r\n");
 
             sprintf(totalMoney, "%.2f", atof(unitPrice) * (Weight_Shiwu / 1000.0) - 0.005);
-
-            tradeLock =
-                1; //本次交易结束，正处于显示页面，不能再改动修改数据，重新开始交易请按B键
+            sprintf(totalWeight, "%.2f", (Weight_Shiwu / 1000.0) - 0.005);
+            tradeLock =1; //本次交易结束，正处于显示页面，不能再改动修改数据，重新开始交易请按B键
 
             keyTouch = 0;
 
@@ -650,7 +652,7 @@ void KeyPadService(void)
 
 
             gprsService = 1;
-            sprintf(gprsSendBuff, "get?jiage=%s&name=HouXiao\r\n", totalMoney);
+            sprintf(gprsSendBuff, "%s,%s,name\r\n", totalMoney,totalWeight);
             ledFlickFlag = 1;
 
 
@@ -658,15 +660,52 @@ void KeyPadService(void)
 
         case 15:
             //  printf("#\r\n");
-
-
-
-
-
-            keyTouch = 0;
+					tradeLock =1; //本次交易结束，正处于显示页面，不能再改动修改数据，重新开始交易请按B键
+						gprsService = 1;
+//						if(ReceiveState ==1)
+//						{
+//								ReceiveState=0;
+//															
+//									//						///////////////////////
+//									//					if(USART3_RX_STA&0x8000)
+//									//						{					   
+//									//							len=USART3_RX_STA&0x7fff;;//得到此次接收到的数据长度
+//									//					for(t=0;t<len;t++)
+//									//							{
+//									//								USART_SendData(USART3, USART3_RX_BUF[t]);//向串口1发送数据
+//									//								while(USART_GetFlagStatus(USART3,USART_FLAG_TC)!=SET);//等待发送结束
+//									//							}
+//									//													USART3_RX_STA=0;
+//									//													SendStringBy_USART1(USART3_RX_BUF);
+//									//						}
+//				//////////////////
+						
+						sprintf(gprsSendBuff,"%s,things\r\n", USART3_RX_BUF);
+						Delay_ms(10);
+						SendStringBy_USART1("<2>");
+						SendStringBy_USART1(USART3_RX_BUF);
+				   LCD_ShowString(0, 160, 209, 24, 24, "Hello Data");//17*12=204
+						memset( USART3_RX_BUF, 0x00, sizeof(USART3_RX_BUF) ); //清空数组
+//							}
+//				//		SendStringBy_USART1(USART3_RX_BUF);
+           keyTouch = 0;
+if(USART3_RX_STA&0x8000)
+		{					   
+			len=USART3_RX_STA&0x7fff;;//得到此次接收到的数据长度
+			printf("\r\n您发送的消息为:\r\n\r\n");
+			for(t=0;t<len;t++)
+			{
+				USART_SendData(USART1, USART3_RX_BUF[t]);//向串口1发送数据
+				while(USART_GetFlagStatus(USART1,USART_FLAG_TC)!=SET);//等待发送结束
+			}
+			printf("\r\n\r\n");//插入换行
+			USART3_RX_STA=0;
+		}
+		SendStringBy_USART1("<1>");
             break;
 
     }
+		
 }
 
 
@@ -733,7 +772,8 @@ void  GPRS_Service()
                 USART_ClearFlag(USART2, USART_FLAG_TC);
                 USART_SendData(USART2, 0x1A);
                 while (USART_GetFlagStatus(USART2, USART_FLAG_TC) == RESET);
-
+                 USART2_IRQHandler();
+						      
                 gprsService = 0;
             }
             if (temp == 3) //连续三次都错误

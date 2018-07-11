@@ -3,7 +3,7 @@
 
 #include <stm32f10x.h>
 #include "sys.h"
-
+#include <stdint.h>
 
 
 extern uint16_t DS0_TimeCnt;

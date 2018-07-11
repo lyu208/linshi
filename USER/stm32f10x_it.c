@@ -8,10 +8,23 @@
 #include  "tools.h"
 #include "HX711.h"
 #include "sim900a.h"
-
+#define USART_REC_LEN  			200  	//定义最大接收字节数 200
 /******************************************************************************/
 /*            Cortex-M3 Processor Exceptions Handlers                         */
 /******************************************************************************/
+u8 USART3_RX_BUF[USART_REC_LEN];     //接收缓冲,最大USART_REC_LEN个字节.
+//接收状态
+//bit15，	接收完成标志
+//bit14，	接收到0x0d
+//bit13~0，	接收到的有效字节数目
+u16 USART3_RX_STA=0;//接收状态标记	
+u16 ReceiveState=0;
+
+extern char RxBuffer2[17];
+extern char RxCounter2;
+extern char RxBuffer3;
+u8 a=0;
+u8 b=0;
 
 /**
  * @brief  This function handles NMI exception.
@@ -140,27 +153,85 @@ void USART2_IRQHandler()
         GSM_recvBuff[recvDataCnt] = USART2->DR; // 252
 
         recvDataCnt++;
-        if (recvDataCnt >= 253)
-        {
-            recvDataCnt = 0;
-        }
+			   if (FindChar(GSM_recvBuff,
+                             "hello")) //在GSM_recvBuff[]数组里，查找有没有含有 ref这么个字符
+                {
+                  LCD_ShowString(0, 160, 209, 24, 24, " OK  hello");//17*12=204
+                }else return;
     }
 }
 
 
+
+
+
 void USART3_IRQHandler()
-{
-    /*if(USART_GetFlagStatus(USART1,USART_IT_RXNE)) 这样测试也可以*/
-    if (USART_GetITStatus(USART3,
-                          USART_IT_RXNE) != RESET) //等于1时 表示收到数据，可以读取
-    {
-        /*至于为什么没有进行中断标志位的清楚，是因为书册《STM32参考手册_V10.pdf》第540页上说
-               “对USART_DR寄存器的读操作，可以清楚该中断位。不过也可以通过写0来清除！！ 不过在多缓存通信
-               中 才建议这样做！！”*/
-        USART_ClearITPendingBit(USART3, USART_IT_RXNE);   //清除S3RI位
+{		
+		u8 Temp_Clear_IDLE=Temp_Clear_IDLE; 
 
-
-    }
+	if(USART_GetITStatus(USART3, USART_IT_IDLE) != RESET)  //空闲总线中断
+	{
+		b=1;
+		Temp_Clear_IDLE=USART3->SR;
+		Temp_Clear_IDLE=USART3->DR;//清除USART_IT_IDLE位
+		USART3_RX_STA|=0x8000;
+	}
+	if(USART_GetITStatus(USART3, USART_IT_RXNE) != RESET)  //接收中断(接收到的数据必须是0x0d 0x0a结尾)
+		{	a++;
+			USART3_RX_BUF[USART3_RX_STA&0X7FFF]=USART_ReceiveData(USART3);//(USART1->DR);	//读取接收到的数据
+			USART3_RX_STA++;
+		}
+	
+		//SendStringBy_USART1(USART3_RX_BUF);
+//	//////////////////////////////////////////////
+//	u8 Res;
+//	if(USART_GetITStatus(USART3, USART_IT_RXNE) != RESET)  //接收中断(接收到的数据必须是0x0d 0x0a结尾)
+//		{
+//		Res =USART_ReceiveData(USART3);	//读取接收到的数据
+//		
+//		if((USART3_RX_STA&0x8000)==0)//接收未完成
+//			{
+//			if(USART3_RX_STA&0x4000)//接收到了0x0d
+//				{
+//				if(Res!=0x0a)USART3_RX_STA=0;//接收错误,重新开始
+//				else USART3_RX_STA|=0x8000;	//接收完成了 
+//				}
+//			else //还没收到0X0D
+//				{	
+//				if(Res==0x0d)USART3_RX_STA|=0x4000;
+//				else
+//					{
+//					USART3_RX_BUF[USART3_RX_STA&0X3FFF]=Res ;
+//					USART3_RX_STA++;
+//						SendStringBy_USART1(USART3_RX_BUF);
+//						SendStringBy_USART1("\r\n");
+//						SendDataBy_USART1(USART3_RX_BUF);
+//					if(USART3_RX_STA>(USART_REC_LEN-1))USART3_RX_STA=0;//接收数据错误,重新开始接收	  
+//					}		 
+//				}
+//			}   		 
+//     } 
+//		        SendStringBy_USART1(USART3_RX_BUF);
+//						SendStringBy_USART1("\r\n");
+//						SendDataBy_USART1(USART3_RX_BUF);
+/////////////////////////////////////////
+//			if(USART_GetITStatus(USART3, USART_IT_RXNE) != RESET)
+//			{
+//				USART3_RX_BUF[USART3_RX_STA++]=USART3->DR  ;
+//			}
+//			else if(USART_GetITStatus(USART3, USART_IT_IDLE) != RESET)
+//			{
+//				Temp_Clear_IDLE=USART3->SR;
+//		    Temp_Clear_IDLE=USART3->DR;//清除USART_IT_IDLE位
+//				ReceiveState=1;
+//			}
+//			//SendStringBy_USART1("USAR2T");
+//			SendStringBy_USART1(USART3_RX_BUF);
+//			 LCD_ShowString(0, 160, 209, 24, 24, " OK  Data");//17*12=204
+//			//memset( USART3_RX_BUF, 0x00, sizeof(USART3_RX_BUF) ); //清空数组
+	
+	
+	
 }
 
 /************************************************

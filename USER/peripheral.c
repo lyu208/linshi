@@ -1,8 +1,8 @@
 /**
   ******************************************************************************
   * @file    peripheral.c
-  * @author  侯霄
-  * @date    2016年5月5日
+  * @author  梦之创
+  * @date    2018年5月16日
   * @brief   外设的所有配置都在此文件内
   ******************************************************************************
   * @attention
@@ -10,7 +10,7 @@
   *
   *
   *
-  *                COPYRIGHT 2016 冲霄集团物联网设备研发中心
+  *                COPYRIGHT 2018 梦之创物联网设备研发中心
   ******************************************************************************
   */
 
@@ -143,7 +143,7 @@ void Key4_IT_Config(void)
     NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority =
         0x00; //抢占优先级  数字越低 优先级越高
     NVIC_InitStructure.NVIC_IRQChannelSubPriority =
-        0x00; //相应优先级   数字越低 优先级越高
+        0x01; //相应优先级   数字越低 优先级越高
 
     NVIC_Init(&NVIC_InitStructure);
 }
@@ -364,7 +364,7 @@ void USART3_Config(void)
     **************************************************************/
 
     USART_ITConfig(USART3, USART_IT_RXNE, ENABLE); //串口接收中断使能
-
+		USART_ITConfig(USART3, USART_IT_IDLE, ENABLE);//开启空闲中断
     NVIC_PriorityGroupConfig(NVIC_PriorityGroup_0); //没用用来配置抢占优先级
 //      NVIC_PriorityGroupConfig(NVIC_PriorityGroup_1);//1位用来配置抢占优先级
 //      NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);//2位用来配置抢占优先级
@@ -375,9 +375,9 @@ void USART3_Config(void)
     NVIC_InitStructure.NVIC_IRQChannel = USART3_IRQn;
     NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
     NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority =
-        0x01; //抢占优先级，数值越小，优先级越高。
+        0x00; //抢占优先级，数值越小，优先级越高。
     NVIC_InitStructure.NVIC_IRQChannelSubPriority =
-        0x01; //响应优先级，数值越小，优先级越高.
+        0x00; //响应优先级，数值越小，优先级越高.
     //抢占优先级是用在中断嵌套的，即高的优先级可以打断低的优先级中断。。。
     //而响应优先级则是两个抢占优先级的中断同事到达时，优先处理相应优先级高的中断。。。
     NVIC_Init(&NVIC_InitStructure);
